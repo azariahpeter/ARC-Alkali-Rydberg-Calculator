@@ -499,6 +499,29 @@ class AlkaliAtom(object):
                 * (j * (j + 1.0) - l * (l + 1.0) - s * (s + 1))
                 / 2.0
             )
+    
+    def hyperfinepotential(self, f:int, i:int, j:int, l:int, r:float, s=0.5)->float:
+        """returns the hyperfine potential. 
+        For l=0, we consider only the contact term of perturbative Hamiltonian
+        For l>0, we consider just the dipole term
+        Furthermore, instead for the delta^3(r) we replace it with a sharp gaussian
+        that mimics the effect.
+        """
+        s = 0.001
+        gaussian = (1/((np.pi * s)**3)) * np.exp(-(r / s)**2)
+        g_j = 1 + ((j * (j + 1) - l * ( l + 1 ) + s * ( s + 1 ))/(2 * j * (j + 1))) #g factor for u_j
+        
+        if i==5/2:
+            g_i = 1.834
+        else: g_i = 0.541
+
+        mass_proton = 1836
+        hf_const = 4 * g_j * g_i * np.pi * (1/137)**2 * 0.25 * (1/1836) #u_0, u_B, u_N
+        if l==0:
+            return hf_const * (1/3) * (f * (f + 1) - j * ( j + 1 ) - i * ( i + 1 )) * gaussian
+        else:
+            return hf_const * (1/(8*np.pi)) * ((2 * l * (l + 1) - j * (j + 1)) / j * (j + 1))*(f * (f + 1) - j * ( j + 1 ) - i * ( i + 1 ))
+        
 
     def radialWavefunction(
         self,
@@ -612,6 +635,132 @@ class AlkaliAtom(object):
                 r = x * x
                 return -3.0 / (4.0 * r) + 4.0 * r * (
                     2.0 * mu * (stateEnergy - self.potential(l, s, j, r))
+                    - l * (l + 1) / (r**2)
+                )
+
+            r, psi_r = NumerovBack(
+                innerLimit, outerLimit, potential, step, 0.01, 0.01
+            )
+
+            suma = trapezoid(psi_r**2, x=r)
+            psi_r = psi_r / (sqrt(suma))
+
+        return r, psi_r
+    
+    def hyperfineRadialWavefunction(
+        self,
+        l: int,
+        s: float,
+        j: float,
+        i: float,
+        f: float,
+        stateEnergy: float,
+        innerLimit: float,
+        outerLimit: float,
+        step: float,
+    ) -> Tuple[List[float], List[float]]:
+        """
+        Radial part of electron wavefunction
+
+        Calculates radial function with Numerov (from outside towards the
+        core). Note that wavefunction might not be calculated all the way to
+        the requested `innerLimit` if the divergence occurs before. In that
+        case third returned argument gives nonzero value, corresponding to the
+        first index in the array for which wavefunction was calculated. For
+        quick example see `Rydberg wavefunction calculation snippet`_.
+
+        .. _`Rydberg wavefunction calculation snippet`:
+            ./Rydberg_atoms_a_primer.html#Rydberg-atom-wavefunctions
+
+
+
+        Args:
+            l (int): orbital angular momentum
+            s (float): spin angular momentum
+            j (float): total angular momentum
+            stateEnergy (float): state energy, relative to ionization
+                threshold, should be given in atomic units (Hatree)
+            innerLimit (float): inner limit at which wavefunction is requested
+            outerLimit (float): outer limit at which wavefunction is requested
+            step (flaot): radial step for integration mesh (a.u.)
+        Returns:
+            List[float], List[flaot], int:
+                :math:`r`
+
+                :math:`R(r)\\cdot r`
+
+        .. note::
+            Radial wavefunction is not scaled to unity! This normalization
+            condition means that we are using spherical harmonics which are
+            normalized such that
+            :math:`\\int \\mathrm{d}\\theta~\\mathrm{d}\\psi~Y(l,m_l)^* \
+            \\times Y(l',m_{l'})  =  \\delta (l,l') ~\\delta (m_l, m_{l'})`.
+
+        Note:
+            Alternative calculation methods can be added here (potenatial
+            package expansion).
+
+        """
+        innerLimit = max(
+            4.0 * step, innerLimit
+        )  # prevent divergence due to hitting 0
+        if self.cpp_numerov:
+            # efficiant implementation in C
+            if l < 4:
+                d = self.NumerovWavefunction(
+                    innerLimit,
+                    outerLimit,
+                    step,
+                    0.01,
+                    0.01,
+                    l,
+                    s,
+                    j,
+                    stateEnergy,
+                    self.alphaC,
+                    self.alpha,
+                    self.Z,
+                    self.a1[l],
+                    self.a2[l],
+                    self.a3[l],
+                    self.a4[l],
+                    self.rc[l],
+                    (self.mass - C_m_e) / self.mass,
+                )
+            else:
+                d = self.NumerovWavefunction(
+                    innerLimit,
+                    outerLimit,
+                    step,
+                    0.01,
+                    0.01,
+                    l,
+                    s,
+                    j,
+                    stateEnergy,
+                    self.alphaC,
+                    self.alpha,
+                    self.Z,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    (self.mass - C_m_e) / self.mass,
+                )
+
+            psi_r = d[0]
+            r = d[1]
+            suma = trapezoid(psi_r**2, x=r)
+            psi_r = psi_r / (sqrt(suma))
+        else:
+            # full implementation in Python
+            mu = (self.mass - C_m_e) / self.mass
+
+            def potential(x):
+                r = x * x
+                return -3.0 / (4.0 * r) + 4.0 * r * (
+                    2.0 * mu * (stateEnergy - self.potential(l, s, j, r)-self.hyperfinepotential(f, i, j, l, r))
                     - l * (l + 1) / (r**2)
                 )
 
