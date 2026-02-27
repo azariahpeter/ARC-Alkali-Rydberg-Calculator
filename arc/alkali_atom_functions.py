@@ -506,6 +506,7 @@ class AlkaliAtom(object):
         For l>0, we consider just the dipole term
         Furthermore, instead for the delta^3(r) we replace it with a sharp gaussian
         that mimics the effect.
+        For now this function works only for Rubidium 85 and 87.
         """
         s = 0.001
         gaussian = (1/((np.pi * s)**3)) * np.exp(-(r / s)**2)
@@ -678,6 +679,8 @@ class AlkaliAtom(object):
             l (int): orbital angular momentum
             s (float): spin angular momentum
             j (float): total angular momentum
+            i (float): spin angular momentum of nucleus
+            f (float): spin angular momentum of nucleus + total angular momentum of electron
             stateEnergy (float): state energy, relative to ionization
                 threshold, should be given in atomic units (Hatree)
             innerLimit (float): inner limit at which wavefunction is requested
@@ -760,7 +763,7 @@ class AlkaliAtom(object):
             def potential(x):
                 r = x * x
                 return -3.0 / (4.0 * r) + 4.0 * r * (
-                    2.0 * mu * (stateEnergy - self.potential(l, s, j, r)-self.hyperfinepotential(f, i, j, l, r))
+                    2.0 * mu * (stateEnergy - self.potential(l, s, j, r) - self.hyperfinepotential(f, i, j, l, r))
                     - l * (l + 1) / (r**2)
                 )
 
