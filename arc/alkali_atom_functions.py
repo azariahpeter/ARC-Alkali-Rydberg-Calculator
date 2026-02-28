@@ -507,6 +507,7 @@ class AlkaliAtom(object):
         Furthermore, instead for the delta^3(r) we replace it with a sharp gaussian
         that mimics the effect.
         For now this function works only for Rubidium 85 and 87.
+        Will add more elements after finding experimental data
         """
         s = 0.001
         gaussian = (1/((np.pi * s)**3)) * np.exp(-(r / s)**2)
