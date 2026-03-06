@@ -708,72 +708,22 @@ class AlkaliAtom(object):
         innerLimit = max(
             4.0 * step, innerLimit
         )  # prevent divergence due to hitting 0
-        if self.cpp_numerov:
-            # efficiant implementation in C
-            if l < 4:
-                d = self.NumerovWavefunction(
-                    innerLimit,
-                    outerLimit,
-                    step,
-                    0.01,
-                    0.01,
-                    l,
-                    s,
-                    j,
-                    stateEnergy,
-                    self.alphaC,
-                    self.alpha,
-                    self.Z,
-                    self.a1[l],
-                    self.a2[l],
-                    self.a3[l],
-                    self.a4[l],
-                    self.rc[l],
-                    (self.mass - C_m_e) / self.mass,
-                )
-            else:
-                d = self.NumerovWavefunction(
-                    innerLimit,
-                    outerLimit,
-                    step,
-                    0.01,
-                    0.01,
-                    l,
-                    s,
-                    j,
-                    stateEnergy,
-                    self.alphaC,
-                    self.alpha,
-                    self.Z,
-                    0.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    (self.mass - C_m_e) / self.mass,
-                )
-
-            psi_r = d[0]
-            r = d[1]
-            suma = trapezoid(psi_r**2, x=r)
-            psi_r = psi_r / (sqrt(suma))
-        else:
             # full implementation in Python
-            mu = (self.mass - C_m_e) / self.mass
+        mu = (self.mass - C_m_e) / self.mass
 
-            def potential(x):
-                r = x * x
-                return -3.0 / (4.0 * r) + 4.0 * r * (
-                    2.0 * mu * (stateEnergy - self.potential(l, s, j, r) - self.hyperfinepotential(f, i, j, l, r))
-                    - l * (l + 1) / (r**2)
-                )
-
-            r, psi_r = NumerovBack(
-                innerLimit, outerLimit, potential, step, 0.01, 0.01
+        def potential(x):
+            r = x * x
+            return -3.0 / (4.0 * r) + 4.0 * r * (
+                2.0 * mu * (stateEnergy - self.potential(l, s, j, r) - self.hyperfinepotential(f, i, j, l, r))
+                - l * (l + 1) / (r**2)
             )
 
-            suma = trapezoid(psi_r**2, x=r)
-            psi_r = psi_r / (sqrt(suma))
+        r, psi_r = NumerovBack(
+            innerLimit, outerLimit, potential, step, 0.01, 0.01
+        )
+
+        suma = trapezoid(psi_r**2, x=r)
+        psi_r = psi_r / (sqrt(suma))
 
         return r, psi_r
 
